@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Numerics;
+using System.Reflection;
 
 namespace ProductService.IOC;
 public interface IModule
@@ -82,6 +83,16 @@ public class IOCContainer : IDisposable
 
         lock (_lock)
         {
+            var IsGeneric = type.IsGenericType;
+            Type[] genericArguments = null;
+            
+            if (IsGeneric)
+            {
+                genericArguments = type.GetGenericArguments();
+                type = type.GetGenericTypeDefinition();
+            }
+
+
             if (!_store.TryGet(type, name, out Registration registration))
             {
                 throw new Exception($"Type {type.Name} not registered with name '{name}'");
@@ -105,10 +116,17 @@ public class IOCContainer : IDisposable
                 _resolving.Remove(type);
                 return _scopedInstances.Value[type];
             }
+            try
+            {
+                object instance = registration.GetInstance(this, _scopedInstances.Value.ContainsKey(type),genericArguments);
+                lock (_lock) _resolving.Remove(type);
+                return instance;
+            }catch
+            {
+                lock (_lock) _resolving.Remove(type);
+                throw;
+            }
 
-            object instance = registration.GetInstance(this, _scopedInstances.Value.ContainsKey(type));
-            _resolving.Remove(type);
-            return instance;
         }
     }
 
@@ -129,5 +147,4 @@ public class IOCContainer : IDisposable
     {
     }
 }
-
 

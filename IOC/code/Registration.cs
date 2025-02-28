@@ -30,17 +30,18 @@ public class Registration
     public Lifetime Lifetime { get; }
     public object Instance { get; set; }
     public Func<IOCContainer, object> Factory { get; }
-    private Lazy<object> _singletonInstance;
+
+    private object _singletonInstance;
     private object _scopedInstance;
+    private readonly object _singletonLock = new();
     private bool IsOpenGeneric => ImplementationType.IsGenericTypeDefinition;
 
 
-    public Registration(Type implementationType, Lifetime lifetime, Func<IOCContainer, object> factory = null)
+    public Registration(Type implementationType, Lifetime lifetime, Func<IOCContainer, object> factory = null, Interceptor interceptor = null)
     {
         ImplementationType = implementationType;
         Lifetime = lifetime;
         Factory = factory;
-        _singletonInstance = new Lazy<object>(() => null);
     }
 
     public object GetInstance(IOCContainer container, bool isScoped, Type[] genericArguments = null)
@@ -52,16 +53,22 @@ public class Registration
                 throw new Exception($"Open generic type {ImplementationType.Name} requires type parameters.");
             }
             var closedType = ImplementationType.MakeGenericType(genericArguments);
-            return Activator.CreateInstance(closedType, container);
+            return Activator.CreateInstance(closedType);
         }
 
         if (Lifetime == Lifetime.Singleton)
         {
-            if (_singletonInstance.Value == null)
+            if (_singletonInstance == null)
             {
-                _singletonInstance = new Lazy<object>(() => CreateInstance(container));
+                lock (_singletonLock)  // Ensure only one thread initializes the singleton
+                {
+                    if (_singletonInstance == null)
+                    {
+                        _singletonInstance = CreateInstance(container);
+                    }
+                }
             }
-            return _singletonInstance.Value;
+            return _singletonInstance;
         }
         if (Lifetime == Lifetime.Scoped && isScoped)
         {
@@ -126,7 +133,7 @@ public class Registration
     }
 }
 
-public class RegistrationStore
+public class RegistrationStore 
 {
     private readonly ConcurrentDictionary<(Type, string), Registration> _registrations = new ConcurrentDictionary<(Type, string), Registration>();
     public void Add(Type serviceType, string name, Registration registration)
