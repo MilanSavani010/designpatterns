@@ -1,7 +1,4 @@
-using NUnit.Framework;
-using ProductService.IOC;
-using System;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Reflection;
 
 [TestFixture]
@@ -50,9 +47,19 @@ public class IoCContainerTests
     [Test]
     public void RegisterAndResolve_WithFactory_ShouldUseFactoryMethod()
     {
-        _container.Register<IService>(c => new ServiceImplementation(), lifetime : Lifetime.Transient) ;
+        _container.Register<IService>(c => new ServiceImplementation(), lifetime: Lifetime.Transient);
         var instance = _container.Resolve<IService>();
         Assert.IsNotNull(instance);
+    }
+
+
+
+    [Test]
+    public void RegisterAndResolve_WithOpenGenericType_ShouldUseOpeneGenericType()
+    {
+        _container.Register(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        var userRepository = _container.Resolve<IGenericRepository<A>>();
+        Assert.IsNotNull(userRepository);
     }
 
     [Test]
@@ -170,6 +177,65 @@ public class IoCContainerTests
         Assert.IsInstanceOf<ServiceImplementation>(service);
     }
 
+    [Test]
+    public void ParallelResolution_ShouldBeThreadSafe()
+    {
+        var container = new IOCContainer(new RegistrationStore());
+        container.Register<IService, FirstService>("FirstService", lifetime: Lifetime.Singleton);
+        container.Register<IService, SecondService>("SecondService", lifetime: Lifetime.Transient);
+
+        IService[] Signletonresults = new IService[1000];
+        IService[] Transientresults = new IService[1000];
+
+        Parallel.For(0, 1000, i =>
+        {
+            Signletonresults[i] = container.Resolve<IService>("FirstService");
+            Transientresults[i] = container.Resolve<IService>("SecondService");
+
+
+        });
+
+        Assert.That(Signletonresults.All(r => r == Signletonresults[0]), "All instances should be the same singleton instance.");
+        Assert.That(Transientresults.Distinct().Count(), Is.EqualTo(1000), "Each transient instance must be unique.");
+    }
+
+    [Test]
+    public void InterceptionWithDynamicProxy_ShouldLog()
+    {
+        IOCContainer container = new IOCContainer(new RegistrationStore());
+        container.Register<IInterceptedService, InterceptedService>();
+
+
+        // Register interceptors
+        container.RegisterInterceptor<IInterceptedService>(new LoggingInterceptor());
+        container.RegisterInterceptor<IInterceptedService>(new TimingInterceptor());
+
+        var interceptedService = container.Resolve<IInterceptedService>();
+
+        string message = interceptedService.SayHello("Milan");
+        Console.WriteLine(message);
+
+
+    }
+
+    [Test]
+    public void Interceptor_Should_Log_Method_Calls()
+    {
+        // Arrange
+        _container.Register<IInterceptedService, InterceptedService>();
+        _container.RegisterInterceptor<IInterceptedService>(new LoggingInterceptor());
+
+        var service = _container.Resolve<IInterceptedService>();
+
+        // Act
+        string result = service.SayHello("Milan");
+
+        // Assert
+        Assert.AreEqual("Hello, Milan!", result);
+    }
+
+
+
 }
 
 // Supporting Classes for Testing
@@ -227,3 +293,27 @@ public class ServiceWithTwoConstructorsWithoutInject : IService
 
 
 public class AlternativeServiceImplementation : IService { }
+
+public interface IGenericRepository<T>
+{
+
+}
+
+public class GenericRepository<T> : IGenericRepository<T>
+{
+    public GenericRepository()
+    {
+        
+    }
+}
+
+public interface IInterceptedService
+{
+    public string SayHello(string name);
+}
+
+public class InterceptedService: IInterceptedService
+{
+    public string SayHello(string name) => $"Hello, {name}!";
+
+}

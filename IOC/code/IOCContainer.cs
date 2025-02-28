@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Numerics;
+using System.Reflection;
 
 namespace ProductService.IOC;
 public interface IModule
@@ -8,6 +9,7 @@ public interface IModule
 public class IOCContainer : IDisposable
 {
     public readonly RegistrationStore _store;
+    private readonly Dictionary<Type, List<Interceptor>> _interceptors  = new();
     private readonly ThreadLocal<Dictionary<Type, object>> _scopedInstances = new(() => new Dictionary<Type, object>());
     private readonly HashSet<Type> _resolving = new HashSet<Type>();
     private readonly object _lock = new object();
@@ -41,8 +43,6 @@ public class IOCContainer : IDisposable
     {
         _store.Add(interfaceType, "", new Registration(implementationType, lifetime));
     }
-
-
     public void RegisterIf<TInterface,TImplementation>(Func<bool> condition,string name ="",Lifetime lifetime = Lifetime.Transient) where TImplementation : TInterface
     {
         if(condition())
@@ -64,12 +64,28 @@ public class IOCContainer : IDisposable
         module.Register(this);
     }
 
-    
+    public void RegisterInterceptor<TInterface>(Interceptor interceptor)
+    {
+        if(!_interceptors.ContainsKey(typeof(TInterface)))
+        {
+            _interceptors[typeof(TInterface)] = new List<Interceptor>();
+        }
+        _interceptors[typeof(TInterface)].Add(interceptor);
+    }
 
     public object Resolve(Type type, string name = "")
     {
 
-        return ResolveInternal(type, name);
+        object instance = ResolveInternal(type, name);
+
+        if(_interceptors.TryGetValue(type,out var interceptors) && interceptors.Count>0)
+        {
+            // Wrap with interceptors using DispatchProxy
+            instance = InterceptorProxy.Create(type, instance, interceptors.ToArray());
+        }
+
+        return instance;
+
     }
 
     public T Resolve<T>(string name = "")
@@ -82,6 +98,16 @@ public class IOCContainer : IDisposable
 
         lock (_lock)
         {
+            var IsGeneric = type.IsGenericType;
+            Type[] genericArguments = null;
+            
+            if (IsGeneric)
+            {
+                genericArguments = type.GetGenericArguments();
+                type = type.GetGenericTypeDefinition();
+            }
+
+
             if (!_store.TryGet(type, name, out Registration registration))
             {
                 throw new Exception($"Type {type.Name} not registered with name '{name}'");
@@ -105,10 +131,17 @@ public class IOCContainer : IDisposable
                 _resolving.Remove(type);
                 return _scopedInstances.Value[type];
             }
+            try
+            {
+                object instance = registration.GetInstance(this, _scopedInstances.Value.ContainsKey(type),genericArguments);
+                lock (_lock) _resolving.Remove(type);
+                return instance;
+            }catch
+            {
+                lock (_lock) _resolving.Remove(type);
+                throw;
+            }
 
-            object instance = registration.GetInstance(this, _scopedInstances.Value.ContainsKey(type));
-            _resolving.Remove(type);
-            return instance;
         }
     }
 
@@ -129,5 +162,4 @@ public class IOCContainer : IDisposable
     {
     }
 }
-
 
