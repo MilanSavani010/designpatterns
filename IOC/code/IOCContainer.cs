@@ -9,6 +9,7 @@ public interface IModule
 public class IOCContainer : IDisposable
 {
     public readonly RegistrationStore _store;
+    private readonly Dictionary<Type, List<Interceptor>> _interceptors  = new();
     private readonly ThreadLocal<Dictionary<Type, object>> _scopedInstances = new(() => new Dictionary<Type, object>());
     private readonly HashSet<Type> _resolving = new HashSet<Type>();
     private readonly object _lock = new object();
@@ -42,8 +43,6 @@ public class IOCContainer : IDisposable
     {
         _store.Add(interfaceType, "", new Registration(implementationType, lifetime));
     }
-
-
     public void RegisterIf<TInterface,TImplementation>(Func<bool> condition,string name ="",Lifetime lifetime = Lifetime.Transient) where TImplementation : TInterface
     {
         if(condition())
@@ -65,12 +64,28 @@ public class IOCContainer : IDisposable
         module.Register(this);
     }
 
-    
+    public void RegisterInterceptor<TInterface>(Interceptor interceptor)
+    {
+        if(!_interceptors.ContainsKey(typeof(TInterface)))
+        {
+            _interceptors[typeof(TInterface)] = new List<Interceptor>();
+        }
+        _interceptors[typeof(TInterface)].Add(interceptor);
+    }
 
     public object Resolve(Type type, string name = "")
     {
 
-        return ResolveInternal(type, name);
+        object instance = ResolveInternal(type, name);
+
+        if(_interceptors.TryGetValue(type,out var interceptors) && interceptors.Count>0)
+        {
+            // Wrap with interceptors using DispatchProxy
+            instance = InterceptorProxy.Create(type, instance, interceptors.ToArray());
+        }
+
+        return instance;
+
     }
 
     public T Resolve<T>(string name = "")

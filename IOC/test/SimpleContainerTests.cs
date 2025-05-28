@@ -199,7 +199,40 @@ public class IoCContainerTests
         Assert.That(Transientresults.Distinct().Count(), Is.EqualTo(1000), "Each transient instance must be unique.");
     }
 
+    [Test]
+    public void InterceptionWithDynamicProxy_ShouldLog()
+    {
+        IOCContainer container = new IOCContainer(new RegistrationStore());
+        container.Register<IInterceptedService, InterceptedService>();
 
+
+        // Register interceptors
+        container.RegisterInterceptor<IInterceptedService>(new LoggingInterceptor());
+        container.RegisterInterceptor<IInterceptedService>(new TimingInterceptor());
+
+        var interceptedService = container.Resolve<IInterceptedService>();
+
+        string message = interceptedService.SayHello("Milan");
+        Console.WriteLine(message);
+
+
+    }
+
+    [Test]
+    public void Interceptor_Should_Log_Method_Calls()
+    {
+        // Arrange
+        _container.Register<IInterceptedService, InterceptedService>();
+        _container.RegisterInterceptor<IInterceptedService>(new LoggingInterceptor());
+
+        var service = _container.Resolve<IInterceptedService>();
+
+        // Act
+        string result = service.SayHello("Milan");
+
+        // Assert
+        Assert.AreEqual("Hello, Milan!", result);
+    }
 }
 
 // Supporting Classes for Testing
@@ -269,4 +302,15 @@ public class GenericRepository<T> : IGenericRepository<T>
     {
         
     }
+}
+
+public interface IInterceptedService
+{
+    public string SayHello(string name);
+}
+
+public class InterceptedService: IInterceptedService
+{
+    public string SayHello(string name) => $"Hello, {name}!";
+
 }

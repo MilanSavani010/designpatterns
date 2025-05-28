@@ -82,6 +82,8 @@ public class Registration
         if (container == null) throw new InvalidOperationException("IoCContainer instance is required for resolution.");
 
         object instance = Factory?.Invoke(container) ?? CreateInstanceWithConstructorInjection(container);
+      
+        
         InjectProperties(instance, container);
         return instance;
 
