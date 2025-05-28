@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 
-namespace ProductService.IOC;
+namespace IOC;
 
 public class TimingInterceptor : Interceptor
 {

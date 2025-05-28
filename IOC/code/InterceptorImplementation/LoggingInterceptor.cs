@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ProductService.IOC;
+namespace IOC;
 
 public class LoggingInterceptor : Interceptor
 {

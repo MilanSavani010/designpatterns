@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
 
-namespace ProductService.IOC;
+namespace IOC;
 
 
 public enum Lifetime

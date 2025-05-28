@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using System.Reflection;
 
-namespace ProductService.IOC;
+namespace IOC;
 public interface IModule
 {
     void Register(IOCContainer container);
