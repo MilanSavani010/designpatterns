@@ -233,9 +233,6 @@ public class IoCContainerTests
         // Assert
         Assert.AreEqual("Hello, Milan!", result);
     }
-
-
-
 }
 
 // Supporting Classes for Testing

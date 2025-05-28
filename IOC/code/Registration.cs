@@ -37,7 +37,7 @@ public class Registration
     private bool IsOpenGeneric => ImplementationType.IsGenericTypeDefinition;
 
 
-    public Registration(Type implementationType, Lifetime lifetime, Func<IOCContainer, object> factory = null)
+    public Registration(Type implementationType, Lifetime lifetime, Func<IOCContainer, object> factory = null, Interceptor interceptor = null)
     {
         ImplementationType = implementationType;
         Lifetime = lifetime;
