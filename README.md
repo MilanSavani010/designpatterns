@@ -90,4 +90,3 @@ Unit tests are provided in [IOC/test/SimpleContainerTests.cs](IOC/test/SimpleCon
 
 ---
 
-© 2024 Your Name or Organization. Licensed under MIT.
